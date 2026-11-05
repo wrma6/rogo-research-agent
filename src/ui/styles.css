@@ -15,11 +15,38 @@ body {
 .app {
   max-width: 760px;
   margin: 0 auto;
-  min-height: 100vh;
+  height: 100dvh;
   padding: 32px 20px 24px;
   display: flex;
   flex-direction: column;
   gap: 20px;
+}
+
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.clear {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  border: 1px solid #dde2e8;
+  border-radius: 8px;
+  background: #fff;
+  color: #33414f;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.clear:hover {
+  border-color: #b9c2cc;
+}
+
+.clear:disabled {
+  opacity: 0.55;
+  cursor: default;
 }
 
 header h1 {
@@ -33,11 +60,18 @@ header p {
   font-size: 14px;
 }
 
+/* Only the conversation scrolls, so the header and composer never move. */
 .transcript {
   flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.bubble {
+  flex-shrink: 0;
 }
 
 .examples {
@@ -87,13 +121,83 @@ header p {
   color: #8b97a3;
 }
 
+.facts {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #e4e8ed;
+  white-space: normal;
+}
+
+.facts summary {
+  cursor: pointer;
+}
+
+.facts > summary {
+  color: #62707f;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.facts ol {
+  margin: 10px 0 0;
+  padding: 0 0 0 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.facts li {
+  padding: 4px 6px;
+  border-radius: 6px;
+}
+
+.facts li.active {
+  background: #eef4fd;
+}
+
+.citation {
+  margin-left: 1px;
+  padding: 0 2px;
+  color: #2563c9;
+  font-size: 11px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.citation:hover {
+  text-decoration: underline;
+}
+
+.source {
+  margin-top: 2px;
+  color: #62707f;
+  font-size: 12px;
+}
+
+.source p {
+  margin: 6px 0 0;
+  padding-left: 10px;
+  border-left: 2px solid #e4e8ed;
+}
+
+.tag {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #eef1f4;
+  color: #62707f;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.tag.warning {
+  background: #fdf0e1;
+  color: #9a5b13;
+}
+
 .composer {
   display: flex;
   gap: 8px;
-  position: sticky;
-  bottom: 0;
-  background: #f6f7f9;
-  padding-top: 8px;
 }
 
 .composer input {

@@ -1,6 +1,7 @@
 import "dotenv/config";
 import express from "express";
 import { runAgent } from "./agent.ts";
+import { parseConversation } from "./conversation.ts";
 
 if (!process.env.ANTHROPIC_API_KEY) {
   console.error(
@@ -14,10 +15,11 @@ app.use(express.json());
 
 app.post("/api/chat", async (req, res) => {
   const message = String(req.body.message ?? "");
-  console.log(`\n[chat] ${message}`);
+  const conversation = parseConversation(req.body);
+  console.log(`\n[chat] ${message} (${conversation.history.length} earlier turns)`);
 
   try {
-    const result = await runAgent(message, (event) => {
+    const onEvent: Parameters<typeof runAgent>[1] = (event) => {
       switch (event.type) {
         case "iteration":
           console.log(`[agent] iteration ${event.n}`);
@@ -32,9 +34,13 @@ app.post("/api/chat", async (req, res) => {
           console.log(`[tool]  ! ${event.name}: ${event.message}`);
           break;
       }
-    });
+    };
+    const result = await runAgent(message, onEvent, conversation);
 
-    res.json({ answer: result.answer });
+    const unverified = result.facts.filter((fact) => !fact.source.verified).length;
+    console.log(`[agent] answered: ${result.facts.length} facts, ${unverified} unverified`);
+
+    res.json({ answer: result.answer, facts: result.facts, sources: result.sources });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: String(err) });
