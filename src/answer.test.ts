@@ -14,6 +14,8 @@ describe("resolveFacts", () => {
   it("verifies a retrieved document and uses our own title and date", () => {
     const [fact] = resolveFacts([docFact], new Set(sourcesFrom("searchDocuments", [doc])));
     expect(fact.source).toEqual({
+      type: "document",
+      id: doc.id,
       label: doc.title,
       date: doc.date,
       excerpt: doc.body,
@@ -29,6 +31,8 @@ describe("resolveFacts", () => {
   it("flags a document id that does not exist", () => {
     const [fact] = resolveFacts([{ ...docFact, sourceId: "DOC-FAKE-999" }], new Set());
     expect(fact.source).toEqual({
+      type: "document",
+      id: "DOC-FAKE-999",
       label: "DOC-FAKE-999",
       date: null,
       excerpt: null,

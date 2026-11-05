@@ -10,6 +10,7 @@ import {
   sourcesFrom,
   type ResolvedFact,
 } from "./answer.ts";
+import { emptyConversation, historyToMessages, type Conversation } from "./conversation.ts";
 import { companies } from "./data.ts";
 import { executeTool, toolSchemas } from "./tools.ts";
 
@@ -24,7 +25,9 @@ Use the tools to look up companies, profiles, financials and source documents. A
 
 Your job is to find and report facts, not to infer them.
 
-Every factual claim must name its source, and you may only cite sources the tools returned while answering this question. Label your own calculations and inferences as yours.
+Every factual claim must name its source, and you may only cite sources the tools returned during this conversation. Label your own calculations and inferences as yours.
+
+Treat a follow-up as continuing the conversation, and resolve words like "they" or "that" from earlier turns. Numbering restarts in each answer: markers and facts refer only to the current reply.
 
 Before concluding, draw on every kind of source that could bear on the question, and look for anything that would qualify or contradict your conclusion.
 
@@ -50,6 +53,8 @@ export type AgentEvent =
 export interface AgentResult {
   answer: string;
   facts: ResolvedFact[];
+  /** Everything retrieved so far, to send back with the next message. */
+  sources: string[];
   iterations: number;
 }
 
@@ -63,10 +68,14 @@ function textOf(message: Anthropic.Message): string {
 export async function runAgent(
   question: string,
   onEvent: (event: AgentEvent) => void,
+  conversation: Conversation = emptyConversation,
 ): Promise<AgentResult> {
-  const messages: Anthropic.MessageParam[] = [{ role: "user", content: question }];
+  const messages: Anthropic.MessageParam[] = [
+    ...historyToMessages(conversation.history),
+    { role: "user", content: question },
+  ];
 
-  const retrieved = new Set<string>();
+  const retrieved = new Set(conversation.sources);
   let fallbackText = "";
   let retried = false;
   let iterations = 0;
@@ -96,6 +105,7 @@ export async function runAgent(
         return {
           answer: parsed.answer,
           facts: resolveFacts(parsed.facts, retrieved),
+          sources: [...retrieved],
           iterations,
         };
       }
@@ -141,6 +151,7 @@ export async function runAgent(
       fallbackText ||
       "I looked at a number of sources but couldn't pull an answer together. Try asking a narrower question.",
     facts: [],
+    sources: [...retrieved],
     iterations,
   };
 }

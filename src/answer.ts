@@ -62,10 +62,12 @@ export interface ResolvedFact {
   claim: string;
   type: Fact["type"];
   source: {
+    type: Fact["sourceType"];
+    id: string;
     label: string;
     date: string | null;
     excerpt: string | null;
-    /** True only if a tool returned this source while answering this question. */
+    /** True only if a tool returned this source during this conversation. */
     verified: boolean;
   };
 }
@@ -111,7 +113,14 @@ export function resolveFacts(facts: Fact[], retrieved: ReadonlySet<string>): Res
       return {
         claim,
         type,
-        source: { label: doc.title, date: doc.date, excerpt: doc.body, verified },
+        source: {
+          type: sourceType,
+          id: sourceId,
+          label: doc.title,
+          date: doc.date,
+          excerpt: doc.body,
+          verified,
+        },
       };
     }
 
@@ -121,6 +130,10 @@ export function resolveFacts(facts: Fact[], retrieved: ReadonlySet<string>): Res
         : sourceType === "profile"
           ? `Company profile: ${sourceId}`
           : sourceId;
-    return { claim, type, source: { label, date: null, excerpt: null, verified } };
+    return {
+      claim,
+      type,
+      source: { type: sourceType, id: sourceId, label, date: null, excerpt: null, verified },
+    };
   });
 }

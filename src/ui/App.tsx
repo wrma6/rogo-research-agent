@@ -1,11 +1,23 @@
 import { useId, useState } from "react";
 import type { ResolvedFact } from "../answer.ts";
+import type { Turn } from "../conversation.ts";
 import { splitCitations } from "./citations.ts";
 
 interface Message {
   role: "user" | "assistant";
   text: string;
   facts?: ResolvedFact[];
+  /** A request that failed, which shouldn't become part of the conversation. */
+  failed?: boolean;
+}
+
+/** Pairs each answer with its question, leaving out failed requests. */
+function toHistory(messages: Message[]): Turn[] {
+  return messages.flatMap((message, i) =>
+    message.role === "assistant" && !message.failed
+      ? [{ question: messages[i - 1].text, answer: message.text, facts: message.facts ?? [] }]
+      : [],
+  );
 }
 
 function AssistantMessage({ text, facts = [] }: { text: string; facts?: ResolvedFact[] }) {
@@ -90,6 +102,7 @@ export function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  const [sources, setSources] = useState<string[]>([]);
 
   async function send(question: string) {
     if (!question.trim() || busy) return;
@@ -102,17 +115,23 @@ export function App() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: question }),
+        body: JSON.stringify({ message: question, history: toHistory(messages), sources }),
       });
       const data = await res.json();
+      if (data.sources) setSources(data.sources);
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", text: data.answer ?? data.error, facts: data.facts },
+        {
+          role: "assistant",
+          text: data.answer ?? data.error,
+          facts: data.facts,
+          failed: !res.ok,
+        },
       ]);
     } catch (err) {
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", text: `Something went wrong: ${String(err)}` },
+        { role: "assistant", text: `Something went wrong: ${String(err)}`, failed: true },
       ]);
     }
 
@@ -160,7 +179,7 @@ export function App() {
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Ask a research question…"
+          placeholder={messages.length ? "Ask a follow-up…" : "Ask a research question…"}
           disabled={busy}
         />
         <button type="submit" disabled={busy}>

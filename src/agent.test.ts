@@ -107,6 +107,21 @@ describe("runAgent", () => {
     ]);
   });
 
+  it("sends earlier turns and keeps earlier sources verified", async () => {
+    replies = [[text(JSON.stringify({ answer: "Still true.", facts: [financialsFact("Initech")] }))]];
+
+    const result = await runAgent("Is that still true?", () => {}, {
+      history: [{ question: "How is Initech?", answer: "It grew.", facts: [] }],
+      sources: ["financials:Initech"],
+    });
+
+    expect(sent[0].messages).toHaveLength(3);
+    expect(sent[0].messages[0].content).toBe("How is Initech?");
+    expect(sent[0].messages[2].content).toBe("Is that still true?");
+    expect(result.facts[0].source.verified).toBe(true);
+    expect(result.sources).toEqual(["financials:Initech"]);
+  });
+
   it("does not verify a source whose tool call failed", async () => {
     replies = [
       [toolUse("getFinancials", { company: "Nope" })],
@@ -123,7 +138,12 @@ describe("runAgent", () => {
 
     const result = await runAgent("How are they?", () => {});
 
-    expect(result).toEqual({ answer: "Which company do you mean?", facts: [], iterations: 1 });
+    expect(result).toEqual({
+      answer: "Which company do you mean?",
+      facts: [],
+      sources: [],
+      iterations: 1,
+    });
   });
 
   it("retries once after a broken reply", async () => {
