@@ -104,26 +104,27 @@ export async function runAgent(
       break;
     }
 
-    const toolResults: Anthropic.ToolResultBlockParam[] = [];
+    // Promise.all keeps results in request order, whichever tool finishes first.
+    const toolResults = await Promise.all(
+      toolUses.map(async (use): Promise<Anthropic.ToolResultBlockParam> => {
+        const startedAt = Date.now();
+        onEvent({ type: "tool_start", name: use.name, input: use.input });
 
-    for (const use of toolUses) {
-      const startedAt = Date.now();
-      onEvent({ type: "tool_start", name: use.name, input: use.input });
+        let content: string;
+        try {
+          const output = await executeTool(use.name, use.input as Record<string, unknown>);
+          content = JSON.stringify(output);
+          for (const source of sourcesFrom(use.name, output)) retrieved.add(source);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          content = `${use.name} returned: ${message}`;
+          onEvent({ type: "tool_failed", name: use.name, message });
+        }
 
-      let content: string;
-      try {
-        const output = await executeTool(use.name, use.input as Record<string, unknown>);
-        content = JSON.stringify(output);
-        for (const source of sourcesFrom(use.name, output)) retrieved.add(source);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        content = `${use.name} returned: ${message}`;
-        onEvent({ type: "tool_failed", name: use.name, message });
-      }
-
-      onEvent({ type: "tool_end", name: use.name, ms: Date.now() - startedAt });
-      toolResults.push({ type: "tool_result", tool_use_id: use.id, content });
-    }
+        onEvent({ type: "tool_end", name: use.name, ms: Date.now() - startedAt });
+        return { type: "tool_result", tool_use_id: use.id, content };
+      }),
+    );
 
     messages.push({ role: "user", content: toolResults });
   }

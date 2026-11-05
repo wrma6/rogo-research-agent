@@ -3,6 +3,8 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 /** One scripted model reply per request, in order. */
 let replies: unknown[][] = [];
 let requests = 0;
+/** The request bodies the agent sent. */
+let sent: { messages: { content: string | { tool_use_id: string }[] }[] }[] = [];
 
 const respond = (content: unknown[]) =>
   new Response(
@@ -41,7 +43,10 @@ beforeAll(async () => {
   vi.stubEnv("ANTHROPIC_API_KEY", "test-key");
   vi.stubGlobal(
     "fetch",
-    vi.fn(async () => respond(replies[requests++])),
+    vi.fn(async (_url: unknown, init: { body: string }) => {
+      sent.push(JSON.parse(init.body));
+      return respond(replies[requests++]);
+    }),
   );
   ({ runAgent } = await import("./agent.ts"));
 });
@@ -49,6 +54,7 @@ beforeAll(async () => {
 beforeEach(() => {
   replies = [];
   requests = 0;
+  sent = [];
 });
 
 describe("runAgent", () => {
@@ -70,6 +76,35 @@ describe("runAgent", () => {
     expect(requests).toBe(2);
     expect(result.answer).toBe("Initech grew.");
     expect(result.facts.map((f) => f.source.verified)).toEqual([true, false]);
+  });
+
+  it("runs tools at the same time and returns results in request order", async () => {
+    replies = [
+      [
+        toolUse("getFinancials", { company: "Initech" }), // the slower tool, requested first
+        toolUse("searchCompanies", { query: "Acme" }),
+      ],
+      [text(JSON.stringify({ answer: "Done.", facts: [] }))],
+    ];
+    const events: string[] = [];
+
+    await runAgent("How is Initech?", (event) => {
+      if (event.type === "tool_start" || event.type === "tool_end") {
+        events.push(`${event.type}:${event.name}`);
+      }
+    });
+
+    expect(events).toEqual([
+      "tool_start:getFinancials",
+      "tool_start:searchCompanies",
+      "tool_end:searchCompanies",
+      "tool_end:getFinancials",
+    ]);
+    const results = sent[1].messages.at(-1)!.content as { tool_use_id: string }[];
+    expect(results.map((r) => r.tool_use_id)).toEqual([
+      "toolu_getFinancials",
+      "toolu_searchCompanies",
+    ]);
   });
 
   it("does not verify a source whose tool call failed", async () => {
