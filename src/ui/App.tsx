@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { ResolvedFact } from "../answer.ts";
 import type { Turn } from "../conversation.ts";
 import { splitCitations } from "./citations.ts";
@@ -103,6 +103,26 @@ export function App() {
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [sources, setSources] = useState<string[]>([]);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const transcriptRef = useRef<HTMLDivElement>(null);
+
+  // The input loses focus while disabled, so give it back to make replying immediate.
+  useEffect(() => {
+    if (!busy) inputRef.current?.focus();
+  }, [busy]);
+
+  // Keep the newest message in view.
+  useEffect(() => {
+    const transcript = transcriptRef.current;
+    if (transcript) transcript.scrollTop = transcript.scrollHeight;
+  }, [messages, busy]);
+
+  function clearConversation() {
+    setMessages([]);
+    setSources([]);
+    setInput("");
+    inputRef.current?.focus();
+  }
 
   async function send(question: string) {
     if (!question.trim() || busy) return;
@@ -141,11 +161,18 @@ export function App() {
   return (
     <div className="app">
       <header>
-        <h1>Rogo Research</h1>
-        <p>Ask a question about a company in our coverage universe.</p>
+        <div>
+          <h1>Rogo Research</h1>
+          <p>Ask a question about a company in our coverage universe.</p>
+        </div>
+        {messages.length > 0 && (
+          <button type="button" className="clear" onClick={clearConversation} disabled={busy}>
+            Clear conversation
+          </button>
+        )}
       </header>
 
-      <div className="transcript">
+      <div className="transcript" ref={transcriptRef}>
         {messages.length === 0 && (
           <div className="examples">
             {EXAMPLES.map((example) => (
@@ -177,6 +204,7 @@ export function App() {
         }}
       >
         <input
+          ref={inputRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder={messages.length ? "Ask a follow-up…" : "Ask a research question…"}
