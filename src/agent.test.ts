@@ -4,7 +4,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 let replies: unknown[][] = [];
 let requests = 0;
 /** The request bodies the agent sent. */
-let sent: { messages: { content: string | { tool_use_id: string }[] }[] }[] = [];
+let sent: { messages: { content: unknown }[] }[] = [];
 
 const respond = (content: unknown[]) =>
   new Response(
@@ -120,6 +120,22 @@ describe("runAgent", () => {
     expect(sent[0].messages[2].content).toBe("Is that still true?");
     expect(result.facts[0].source.verified).toBe(true);
     expect(result.sources).toEqual(["financials:Initech"]);
+  });
+
+  it("flags only the tool calls that failed as errors", async () => {
+    replies = [
+      [
+        toolUse("getFinancials", { company: "Nope" }),
+        toolUse("searchCompanies", { query: "Acme" }),
+      ],
+      [text(JSON.stringify({ answer: "Done.", facts: [] }))],
+    ];
+
+    await runAgent("How is Nope?", () => {});
+
+    const results = sent[1].messages.at(-1)!.content as { is_error: boolean; content: string }[];
+    expect(results.map((r) => r.is_error)).toEqual([true, false]);
+    expect(results[0].content).toBe('getFinancials failed: no financials found for "Nope"');
   });
 
   it("does not verify a source whose tool call failed", async () => {

@@ -6,3 +6,4 @@
 - [UX] [RELIABILITY] Added footnote links from the summary to its facts, so an analyst can check a claim in one click, and retry once on a broken reply because structured output occasionally failed ([src/ui/App.tsx:29](src/ui/App.tsx#L29), [src/agent.ts:113](src/agent.ts#L113)).
 - [FEATURE] Let users reply by sending the conversation with each message, because answers invited follow-ups that the agent couldn't remember and would answer without context ([src/agent.ts:74](src/agent.ts#L74)).
 - [UX] Made the chat easier to use: a clear conversation button, scrolling to the newest reply, a search box that stays in place, and focus returning to it after each reply ([src/ui/App.tsx:114-120](src/ui/App.tsx#L114-L120), [src/ui/styles.css:63](src/ui/styles.css#L63)).
+- [CORRECTNESS] Flagged failed tool calls as errors and reworded their message, so the model can tell a failed lookup from a real finding ([src/agent.ts:144](src/agent.ts#L144)).
