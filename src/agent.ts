@@ -3,6 +3,13 @@
  */
 
 import Anthropic from "@anthropic-ai/sdk";
+import {
+  answerFormat,
+  parseAnswer,
+  resolveFacts,
+  sourcesFrom,
+  type ResolvedFact,
+} from "./answer.ts";
 import { companies } from "./data.ts";
 import { executeTool, toolSchemas } from "./tools.ts";
 
@@ -17,11 +24,13 @@ Use the tools to look up companies, profiles, financials and source documents. A
 
 Your job is to find and report facts, not to infer them.
 
-Every factual claim must name its source: the document and date, or the dataset and period. Label your own calculations and inferences as yours.
+Every factual claim must name its source, and you may only cite sources the tools returned while answering this question. Label your own calculations and inferences as yours.
 
 Before concluding, draw on every kind of source that could bear on the question, and look for anything that would qualify or contradict your conclusion.
 
 Only say information is unavailable if you looked for it. If you didn't check something, say so.
+
+When your research is finished, summarize first: keep "answer" to at most three conversational sentences, with the conclusion first and any caveat that could change it. Put all other detail in "facts", never in "answer".
 
 Our coverage universe:
 ${companies
@@ -32,8 +41,6 @@ ${companies
   .join("\n")}
 `;
 
-const EDITOR_PROMPT = `You are an editor. Rewrite the analyst's draft answer so that it reads clearly and is easy to follow. Keep it brief and conversational. Return only the rewritten answer.`;
-
 export type AgentEvent =
   | { type: "iteration"; n: number }
   | { type: "tool_start"; name: string; input: unknown }
@@ -42,6 +49,7 @@ export type AgentEvent =
 
 export interface AgentResult {
   answer: string;
+  facts: ResolvedFact[];
   iterations: number;
 }
 
@@ -58,7 +66,8 @@ export async function runAgent(
 ): Promise<AgentResult> {
   const messages: Anthropic.MessageParam[] = [{ role: "user", content: question }];
 
-  let draft = "";
+  const retrieved = new Set<string>();
+  let fallbackText = "";
   let iterations = 0;
 
   while (iterations < MAX_ITERATIONS) {
@@ -70,6 +79,7 @@ export async function runAgent(
       max_tokens: 16000,
       system: SYSTEM_PROMPT,
       tools: toolSchemas,
+      output_config: { format: answerFormat },
       messages,
     });
 
@@ -80,7 +90,17 @@ export async function runAgent(
     );
 
     if (toolUses.length === 0) {
-      draft = textOf(response);
+      const text = textOf(response);
+      const parsed = parseAnswer(text);
+      if (parsed) {
+        return {
+          answer: parsed.answer,
+          facts: resolveFacts(parsed.facts, retrieved),
+          iterations,
+        };
+      }
+      // Show plain text as is, but never raw JSON from a reply that was cut off.
+      fallbackText = text.trimStart().startsWith("{") ? "" : text;
       break;
     }
 
@@ -94,6 +114,7 @@ export async function runAgent(
       try {
         const output = await executeTool(use.name, use.input as Record<string, unknown>);
         content = JSON.stringify(output);
+        for (const source of sourcesFrom(use.name, output)) retrieved.add(source);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         content = `${use.name} returned: ${message}`;
@@ -107,23 +128,11 @@ export async function runAgent(
     messages.push({ role: "user", content: toolResults });
   }
 
-  if (!draft) {
-    draft =
-      "I looked at a number of sources but ran out of research steps before I could pull the answer together. Try asking a narrower question.";
-  }
-
-  // Polish the draft before showing it to the analyst.
-  const edited = await client.messages.create({
-    model: MODEL,
-    max_tokens: 16000,
-    system: EDITOR_PROMPT,
-    messages: [
-      {
-        role: "user",
-        content: `Research transcript:\n${JSON.stringify(messages)}\n\nDraft answer:\n${draft}\n\nRewrite the draft answer.`,
-      },
-    ],
-  });
-
-  return { answer: textOf(edited), iterations };
+  return {
+    answer:
+      fallbackText ||
+      "I looked at a number of sources but couldn't pull an answer together. Try asking a narrower question.",
+    facts: [],
+    iterations,
+  };
 }

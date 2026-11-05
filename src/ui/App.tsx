@@ -1,8 +1,40 @@
 import { useState } from "react";
+import type { ResolvedFact } from "../answer.ts";
 
 interface Message {
   role: "user" | "assistant";
   text: string;
+  facts?: ResolvedFact[];
+}
+
+function Facts({ facts }: { facts: ResolvedFact[] }) {
+  return (
+    <details className="facts">
+      <summary>Facts and references ({facts.length})</summary>
+      <ul>
+        {facts.map(({ claim, type, source }, i) => (
+          <li key={i}>
+            <div>
+              {claim}
+              {type === "calculated" && <span className="tag">Calculated</span>}
+              {!source.verified && <span className="tag warning">Source not verified</span>}
+            </div>
+            {source.excerpt ? (
+              <details className="source">
+                <summary>
+                  {source.label}
+                  {source.date && `, ${source.date}`}
+                </summary>
+                <p>{source.excerpt}</p>
+              </details>
+            ) : (
+              <div className="source">{source.label}</div>
+            )}
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
 }
 
 const EXAMPLES = [
@@ -33,7 +65,7 @@ export function App() {
       const data = await res.json();
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", text: data.answer ?? data.error },
+        { role: "assistant", text: data.answer ?? data.error, facts: data.facts },
       ]);
     } catch (err) {
       setMessages((prev) => [
@@ -66,6 +98,7 @@ export function App() {
         {messages.map((message, i) => (
           <div key={i} className={`bubble ${message.role}`}>
             {message.text}
+            {message.facts && message.facts.length > 0 && <Facts facts={message.facts} />}
           </div>
         ))}
 

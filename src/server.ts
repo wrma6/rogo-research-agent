@@ -34,7 +34,10 @@ app.post("/api/chat", async (req, res) => {
       }
     });
 
-    res.json({ answer: result.answer });
+    const unverified = result.facts.filter((fact) => !fact.source.verified).length;
+    console.log(`[agent] answered: ${result.facts.length} facts, ${unverified} unverified`);
+
+    res.json({ answer: result.answer, facts: result.facts });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: String(err) });
