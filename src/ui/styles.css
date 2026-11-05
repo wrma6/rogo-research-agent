@@ -104,13 +104,34 @@ header p {
   font-weight: 600;
 }
 
-.facts ul {
+.facts ol {
   margin: 10px 0 0;
-  padding: 0;
-  list-style: none;
+  padding: 0 0 0 22px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
+}
+
+.facts li {
+  padding: 4px 6px;
+  border-radius: 6px;
+}
+
+.facts li.active {
+  background: #eef4fd;
+}
+
+.citation {
+  margin-left: 1px;
+  padding: 0 2px;
+  color: #2563c9;
+  font-size: 11px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.citation:hover {
+  text-decoration: underline;
 }
 
 .source {

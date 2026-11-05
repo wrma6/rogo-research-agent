@@ -61,7 +61,15 @@ describe("parseAnswer", () => {
     });
   });
 
-  it.each(["{}", '{"answer":"","facts":[]}', '{"answer":"Yes."}', "null", '{"answer":"Yes', "Sorry."])(
+  it.each([
+    "{}",
+    '{"answer":"","facts":[]}',
+    '{"answer":"Yes."}',
+    "null",
+    '{"answer":"Yes',
+    "Sorry.",
+    '{"answer":"Yes.}} Wait, let me not break JSON...","facts":[]}',
+  ])(
     "rejects an unusable reply: %s",
     (text) => {
       expect(parseAnswer(text)).toBeNull();

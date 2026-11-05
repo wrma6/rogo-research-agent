@@ -22,11 +22,12 @@ export const answerFormat: Anthropic.JSONOutputFormat = {
       answer: {
         type: "string",
         description:
-          "A conversational summary in plain text, at most three sentences: the conclusion first, the key figure, and any caveat that could change the conclusion.",
+          "A conversational summary in plain text, at most three sentences: the conclusion first, the key figure, and any caveat that could change the conclusion. Cite facts with markers like [1], numbered in the order you first cite them.",
       },
       facts: {
         type: "array",
-        description: "Every factual claim behind the answer and all other detail, each with its source.",
+        description:
+          "Every factual claim behind the answer and all other detail, each with its source. Fact 1 supports marker [1], and so on, with uncited detail at the end.",
         items: {
           type: "object",
           additionalProperties: false,
@@ -95,6 +96,8 @@ export function parseAnswer(text: string): { answer: string; facts: Fact[] } | n
   }
   const { answer, facts } = parsed ?? {};
   if (typeof answer !== "string" || !answer.trim() || !Array.isArray(facts)) return null;
+  // Braces mean the model lost track of the JSON and wrote some of it into the summary.
+  if (/[{}]/.test(answer)) return null;
   return { answer: answer.trim(), facts: facts as Fact[] };
 }
 

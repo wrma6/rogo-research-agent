@@ -126,11 +126,37 @@ describe("runAgent", () => {
     expect(result).toEqual({ answer: "Which company do you mean?", facts: [], iterations: 1 });
   });
 
-  it("never shows raw JSON from a reply that was cut off", async () => {
-    replies = [[text('{"answer":"Initech gr')]];
+  it("retries once after a broken reply", async () => {
+    replies = [
+      [text('{"facts":[],"answer":"Initech gr')],
+      [text(JSON.stringify({ answer: "Initech grew.", facts: [] }))],
+    ];
 
     const result = await runAgent("How is Initech?", () => {});
 
+    expect(requests).toBe(2);
+    expect(result.answer).toBe("Initech grew.");
+    // The broken reply must not stay in the conversation.
+    expect(sent[1].messages).toHaveLength(1);
+  });
+
+  it("retries when JSON leaks into the summary", async () => {
+    replies = [
+      [text(JSON.stringify({ answer: "Initech grew.}} Wait, let me not break JSON...", facts: [] }))],
+      [text(JSON.stringify({ answer: "Initech grew.", facts: [] }))],
+    ];
+
+    const result = await runAgent("How is Initech?", () => {});
+
+    expect(result.answer).toBe("Initech grew.");
+  });
+
+  it("gives up with a clear message if the retry is also broken", async () => {
+    replies = [[text('{"answer":"Initech gr')], [text('{"answer":"Initech gr')]];
+
+    const result = await runAgent("How is Initech?", () => {});
+
+    expect(requests).toBe(2);
     expect(result.facts).toEqual([]);
     expect(result.answer).toMatch(/couldn't pull an answer together/);
   });

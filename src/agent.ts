@@ -30,7 +30,7 @@ Before concluding, draw on every kind of source that could bear on the question,
 
 Only say information is unavailable if you looked for it. If you didn't check something, say so.
 
-When your research is finished, summarize first: keep "answer" to at most three conversational sentences, with the conclusion first and any caveat that could change it. Put all other detail in "facts", never in "answer".
+When your research is finished, summarize first: keep "answer" to at most three conversational sentences, with the conclusion first and any caveat that could change it. Put all other detail in "facts", never in "answer". After each claim in "answer", cite it with a marker like [1], numbering markers in the order you first use them. In "facts", list the fact for [1] first, then [2], and so on, then any uncited detail.
 
 Our coverage universe:
 ${companies
@@ -68,6 +68,7 @@ export async function runAgent(
 
   const retrieved = new Set<string>();
   let fallbackText = "";
+  let retried = false;
   let iterations = 0;
 
   while (iterations < MAX_ITERATIONS) {
@@ -76,14 +77,13 @@ export async function runAgent(
 
     const response = await client.messages.create({
       model: MODEL,
-      max_tokens: 16000,
+      // Final replies take about 1,500 tokens, so this limits how long a runaway reply can run.
+      max_tokens: 4096,
       system: SYSTEM_PROMPT,
       tools: toolSchemas,
       output_config: { format: answerFormat },
       messages,
     });
-
-    messages.push({ role: "assistant", content: response.content });
 
     const toolUses = response.content.filter(
       (block): block is Anthropic.ToolUseBlock => block.type === "tool_use",
@@ -99,10 +99,17 @@ export async function runAgent(
           iterations,
         };
       }
-      // Show plain text as is, but never raw JSON from a reply that was cut off.
-      fallbackText = text.trimStart().startsWith("{") ? "" : text;
+      const brokenJson = text.trimStart().startsWith("{");
+      if (brokenJson && !retried) {
+        retried = true;
+        continue;
+      }
+      // Show plain text as is, but never broken JSON.
+      fallbackText = brokenJson ? "" : text;
       break;
     }
+
+    messages.push({ role: "assistant", content: response.content });
 
     // Promise.all keeps results in request order, whichever tool finishes first.
     const toolResults = await Promise.all(

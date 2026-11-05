@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import type { ResolvedFact } from "../answer.ts";
+import { splitCitations } from "./citations.ts";
 
 interface Message {
   role: "user" | "assistant";
@@ -7,33 +8,74 @@ interface Message {
   facts?: ResolvedFact[];
 }
 
-function Facts({ facts }: { facts: ResolvedFact[] }) {
+function AssistantMessage({ text, facts = [] }: { text: string; facts?: ResolvedFact[] }) {
+  const id = useId();
+  const [open, setOpen] = useState(false);
+  const [activeFact, setActiveFact] = useState<number | null>(null);
+  const factId = (n: number) => `${id}-fact-${n}`;
+
+  function showFact(n: number) {
+    setOpen(true);
+    setActiveFact(n);
+    // Wait for the dropdown to open, so the fact has a position to scroll to.
+    requestAnimationFrame(() => {
+      document.getElementById(factId(n))?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  }
+
   return (
-    <details className="facts">
-      <summary>Facts and references ({facts.length})</summary>
-      <ul>
-        {facts.map(({ claim, type, source }, i) => (
-          <li key={i}>
-            <div>
-              {claim}
-              {type === "calculated" && <span className="tag">Calculated</span>}
-              {!source.verified && <span className="tag warning">Source not verified</span>}
-            </div>
-            {source.excerpt ? (
-              <details className="source">
-                <summary>
-                  {source.label}
-                  {source.date && `, ${source.date}`}
-                </summary>
-                <p>{source.excerpt}</p>
-              </details>
-            ) : (
-              <div className="source">{source.label}</div>
-            )}
-          </li>
-        ))}
-      </ul>
-    </details>
+    <>
+      {splitCitations(text, facts.length).map((segment, i) =>
+        segment.type === "text" ? (
+          segment.text
+        ) : (
+          <sup key={i}>
+            <a
+              className="citation"
+              href={`#${factId(segment.n)}`}
+              aria-label={`Fact ${segment.n}`}
+              onClick={(e) => {
+                e.preventDefault();
+                showFact(segment.n);
+              }}
+            >
+              {segment.n}
+            </a>
+          </sup>
+        ),
+      )}
+      {facts.length > 0 && (
+        <details
+          className="facts"
+          open={open}
+          onToggle={(e) => setOpen(e.currentTarget.open)}
+        >
+          <summary>Facts and references ({facts.length})</summary>
+          <ol>
+            {facts.map(({ claim, type, source }, i) => (
+              <li key={i} id={factId(i + 1)} className={activeFact === i + 1 ? "active" : undefined}>
+                <div>
+                  {claim}
+                  {type === "calculated" && <span className="tag">Calculated</span>}
+                  {!source.verified && <span className="tag warning">Source not verified</span>}
+                </div>
+                {source.excerpt ? (
+                  <details className="source">
+                    <summary>
+                      {source.label}
+                      {source.date && `, ${source.date}`}
+                    </summary>
+                    <p>{source.excerpt}</p>
+                  </details>
+                ) : (
+                  <div className="source">{source.label}</div>
+                )}
+              </li>
+            ))}
+          </ol>
+        </details>
+      )}
+    </>
   );
 }
 
@@ -97,8 +139,11 @@ export function App() {
 
         {messages.map((message, i) => (
           <div key={i} className={`bubble ${message.role}`}>
-            {message.text}
-            {message.facts && message.facts.length > 0 && <Facts facts={message.facts} />}
+            {message.role === "user" ? (
+              message.text
+            ) : (
+              <AssistantMessage text={message.text} facts={message.facts} />
+            )}
           </div>
         ))}
 
